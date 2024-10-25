@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Patient Information Scanner</title>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background: #f4f4f4;
+            color: #333;
+        }
+        
+        #qr-video-container {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            margin-bottom: 20px;
+            overflow: hidden;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+        
+        #qr-video {
+            width: 100%;
+            height: auto;
+        }
+        
+        #qr-canvas {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>Scan Patient QR or Barcode</h2>
+    <div id="qr-video-container">
+        <video id="qr-video" playsinline></video>
+    </div>
+    <canvas id="qr-canvas"></canvas>
+
+    <script>
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: "environment"
+                    }
+                });
+                const video = document.getElementById("qr-video");
+                video.srcObject = stream;
+                video.play();
+            } catch (error) {
+                console.error("Camera access denied:", error);
+            }
+        }
+
+        function scanQRCode() {
+            const video = document.getElementById("qr-video");
+            const canvas = document.getElementById("qr-canvas");
+            const context = canvas.getContext("2d");
+
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height);
+
+            if (code) {
+                console.log("QR Code Data:", code.data);
+                handleScannedData(code.data);
+            }
+        }
+
+        function startBarcodeScanner() {
+            Quagga.init({
+                inputStream: {
+                    type: "LiveStream",
+                    target: document.getElementById("qr-video"),
+                    constraints: {
+                        facingMode: "environment"
+                    }
+                },
+                decoder: {
+                    readers: ["code_128_reader", "ean_reader", "ean_8_reader", "upc_reader", "upc_e_reader"]
+                }
+            }, function(err) {
+                if (err) {
+                    console.error("QuaggaJS Error:", err);
+                    return;
+                }
+                Quagga.start();
+            });
+
+            Quagga.onDetected(result => {
+                const code = result.codeResult.code;
+                console.log("Barcode Data:", code);
+                handleScannedData(code);
+            });
+        }
+
+        function handleScannedData(data) {
+            const nameMatch = /Name:\s*([^\n]+)/.exec(data);
+            const addressMatch = /Address:\s*([^\n]+)/.exec(data);
+            const phoneMatch = /Phone Number:\s*([^\n]+)/.exec(data);
+
+            sessionStorage.setItem("name", nameMatch ? nameMatch[1] : "Unknown");
+            sessionStorage.setItem("address", addressMatch ? addressMatch[1] : "Unknown");
+            sessionStorage.setItem("phone", phoneMatch ? phoneMatch[1] : "Unknown");
+
+            window.location.href = "details.html";
+        }
+
+        setInterval(scanQRCode, 1000);
+
+        window.onload = function() {
+            startCamera();
+            startBarcodeScanner();
+        };
+    </script>
+</body>
+
+</html>
